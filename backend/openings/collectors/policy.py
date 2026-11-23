@@ -67,6 +67,7 @@ def provider_for_url(value: str) -> str:
         "lever.co": "lever",
         "ashbyhq.com": "ashby",
         "recruitee.com": "recruitee",
+        "teamtailor.com": "teamtailor",
         "jobs.personio.de": "personio",
         "jobs.personio.com": "personio",
         "workable.com": "workable",
@@ -476,4 +477,4 @@ class ProviderBudget:
             "requests": self.requests,
             "responses": self.responses,
             "next_run_at": getattr(blocked, "next_run_at", None),
-        }
+           }
