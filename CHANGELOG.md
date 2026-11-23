@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Follow Teamtailor careers pages as company sources, with posting text and all locations. Normal Teamtailor URLs are detected when adding a source.
+
 - Detect Czech and Romanian job postings for language labels and filtering.
 
 ## 0.28.1 — 2026-11-16
