@@ -108,7 +108,7 @@ still check a paused source by hand.
 | Source | What it collects |
 |---|---|
 | Search | One query and place on LinkedIn, Indeed and Glassdoor |
-| Company careers page | The jobs of one company on Greenhouse, Lever, Ashby, Recruitee, Personio, Workable, SmartRecruiters, BambooHR, Rippling, Workday, Oracle or join.com |
+| Company careers page | The jobs of one company on Greenhouse, Lever, Ashby, Recruitee, Personio, Workable, SmartRecruiters, BambooHR, Rippling, Workday, Oracle, Teamtailor or join.com |
 | RSS feed | An RSS or Atom feed of jobs |
 | HN Who is hiring | The latest monthly Hacker News "Ask HN: Who is hiring?" thread |
 
