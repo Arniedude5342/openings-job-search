@@ -464,6 +464,103 @@ def test_recruitee_joins_its_locations_and_drops_inline_images():
     assert "base64" not in items[0]["posting"] and "Design, build" in items[0]["posting"]
 
 
+@pytest.mark.parametrize(
+    ("titles", "exclude_titles", "maximum", "expected"),
+    [
+        (["Platform"], [], 10, ["Platform Engineer", "Platform Engineer II"]),
+        (["Engineer"], ["Sales"], 10, ["Platform Engineer", "Platform Engineer II"]),
+        (["Engineer"], ["Sales"], 1, ["Platform Engineer"]),
+    ],
+)
+def test_teamtailor_reads_inline_text_and_all_locations(titles, exclude_titles, maximum, expected):
+    feed = b"""<rss version="2.0" xmlns:tt="https://teamtailor.com/locations"><channel>
+      <item><title>Platform Engineer</title><guid>role-1</guid>
+        <link>https://example.teamtailor.com/jobs/1-platform-engineer</link>
+        <description>&lt;p&gt;Design, build synthetic services.&lt;/p&gt;</description>
+        <remoteStatus>hybrid</remoteStatus>
+        <tt:locations>
+          <tt:location><tt:name>Headquarters</tt:name><tt:city>Paris</tt:city>
+            <tt:country>France</tt:country></tt:location>
+          <tt:location><tt:name>Berlin</tt:name><tt:city>Berlin</tt:city>
+            <tt:country>Germany</tt:country></tt:location>
+        </tt:locations>
+      </item>
+      <item><title>Sales Engineer</title><guid>role-2</guid>
+        <link>https://example.teamtailor.com/jobs/2-sales-engineer</link>
+        <description>&lt;p&gt;Sell synthetic services.&lt;/p&gt;</description></item>
+      <item><title>Platform Engineer II</title><guid>role-3</guid>
+        <link>https://example.teamtailor.com/jobs/3-platform-engineer</link>
+        <description>&lt;p&gt;Build more synthetic services.&lt;/p&gt;</description></item>
+    </channel></rss>"""
+    calls = []
+
+    def request(url, **kwargs):
+        calls.append(url)
+        return feed
+
+    source = {
+        "name": "Example",
+        "kind": "teamtailor",
+        "config": {
+            "board": "example",
+            "max_results": maximum,
+            "filters": Filters(
+                titles=titles, exclude_titles=exclude_titles, locations=["Germany"]
+            ).model_dump(),
+        },
+    }
+    rows = company.collect(source, request, feeds.html_text)
+    assert calls == ["https://example.teamtailor.com/jobs.rss"]
+    assert [row["title"] for row in rows] == expected
+    assert rows[0]["url"] == "https://example.teamtailor.com/jobs/1-platform-engineer"
+    assert rows[0]["location"] == "Paris, France · Berlin, Germany"
+    assert rows[0]["posting"] == "Design, build synthetic services."
+    assert rows[0]["source_key"] == "teamtailor:example:role-1"
+    assert rows[0]["metadata"]["description_complete"] is True
+    assert rows[0]["metadata"]["workplace_type"] == "hybrid"
+
+
+def test_teamtailor_saved_source_collects_through_the_provider_gate(collection, monkeypatch):
+    workspace, service = collection
+    calls = []
+    feed = b"""<rss><channel><item><title>Platform Engineer</title><guid>role-1</guid>
+    <link>https://example.teamtailor.com/jobs/1-engineer</link>
+    <description>Build and operate synthetic services.</description>
+    </item></channel></rss>"""
+
+    def send(request):
+        calls.append(str(request.url))
+        return httpx.Response(200, content=feed)
+
+    mock_http(monkeypatch, send)
+    source = service.create_source(
+        SourceCreate(name="Example", url="https://example.teamtailor.com/jobs")
+    )
+    assert source["kind"] == "teamtailor"
+    assert run(service, source)["state"] == "succeeded"
+    assert calls == ["https://example.teamtailor.com/jobs.rss"]
+    jobs = workspace.list_jobs()
+    assert jobs["total"] == 1
+    assert jobs["items"][0]["title"] == "Platform Engineer"
+    assert service.providers.get("teamtailor")["runtime"]["total_requests"] == 1
+
+
+@pytest.mark.parametrize("body", [b"<html/>", b"<rss/>", b"not xml"])
+def test_teamtailor_refuses_a_page_that_is_not_its_feed(body):
+    with pytest.raises(DomainError) as invalid:
+        collect("teamtailor", [("/jobs.rss", body)])
+    assert invalid.value.code == "source_format"
+
+
+def test_teamtailor_detects_board_and_provider_without_lookalike_hosts():
+    url = "https://example.teamtailor.com/jobs/1-platform-engineer"
+    assert detect_source(url) == {"kind": "teamtailor", "config": {"board": "example"}, "url": url}
+    assert provider_for_url(url) == "teamtailor"
+    assert provider_for_url("https://example.teamtailor.com.evil.test/jobs.rss") == "manual"
+    with pytest.raises(DomainError, match="supported ATS"):
+        detect_source("https://example.teamtailor.com.evil.test/jobs")
+
+
 # #306 -----------------------------------------------------------------------
 
 
@@ -530,6 +627,7 @@ def test_bamboohr_waits_for_the_country_and_reads_type_and_remote():
         ("greenhouse", "example"),
         ("workable", "example"),
         ("recruitee", "example"),
+        ("teamtailor", "example"),
         ("personio", "example"),
         ("rippling", "example"),
         ("joincom", "example"),
@@ -843,7 +941,7 @@ EXTERNAL_ENTITY = b"""<?xml version="1.0"?>
         b'<?xml version="1.0"?><!DOCTYPE rss SYSTEM "https://example.org/rss.dtd"><rss/>',
     ],
 )
-@pytest.mark.parametrize("kind", ["rss", "personio"])
+@pytest.mark.parametrize("kind", ["rss", "personio", "teamtailor"])
 def test_xml_declarations_are_refused_with_a_typed_error(monkeypatch, kind, body):
     monkeypatch.setattr(feeds, "fetch_bytes", lambda *args, **kwargs: body)
     with pytest.raises(DomainError) as refused:
