@@ -439,6 +439,47 @@ def collect(source, request, text, *, known=None, preview=False, on_item=None):
                 job_type=row.get("employment_type_code"),
                 published_at=row.get("published_at"),
             )
+    elif kind == "teamtailor":
+        root = xml(response(f"https://{board}.teamtailor.com/jobs.rss"))
+        if root.tag != "rss" or root.find("channel") is None:
+            raise DomainError(
+                502, "source_format", "Teamtailor did not return its public jobs feed."
+            )
+        namespace = "{https://teamtailor.com/locations}"
+
+        def place(row):
+            return places(
+                *(
+                    ", ".join(
+                        filter(
+                            None,
+                            (
+                                office.findtext(namespace + "city"),
+                                office.findtext(namespace + "country"),
+                            ),
+                        )
+                    )
+                    or office.findtext(namespace + "name")
+                    for office in row.findall(namespace + "locations/" + namespace + "location")
+                )
+            )
+
+        def flags(row):
+            return {"workplace_type": row.findtext("remoteStatus")}
+
+        for row in select(
+            root.findall("channel/item"), lambda row: row.findtext("title"), place, flags
+        ):
+            add(
+                {child.tag: child.text for child in row},
+                row.findtext("guid") or row.findtext("link"),
+                row.findtext("title"),
+                row.findtext("link"),
+                place(row),
+                row.findtext("description"),
+                **flags(row),
+                published_at=row.findtext("pubDate"),
+            )
     elif kind == "personio":
         base = f"https://{board}.jobs.personio.de"
         # Without a language: ?language=en empties positions written only in German.
