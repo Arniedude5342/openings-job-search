@@ -477,4 +477,4 @@ class ProviderBudget:
             "requests": self.requests,
             "responses": self.responses,
             "next_run_at": getattr(blocked, "next_run_at", None),
-           }
+        }
