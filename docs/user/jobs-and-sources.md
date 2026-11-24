@@ -212,3 +212,8 @@ source that finds many jobs and few you keep is one to narrow or pause.
 
 Source fields and defaults are read from the running server: REST
 `GET /api/v1/sources/schemas`, or `collection_get` over MCP.
+
+Teamtailor RSS returns its first 100 jobs by default. A feed
+with 100 jobs is marked capped; use a smaller source or add missing jobs by URL.
+Fully remote roles pass a Remote filter even when they name an office city.
+Temporarily remote roles are treated as hybrid, not permanently fully remote.

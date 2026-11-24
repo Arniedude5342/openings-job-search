@@ -465,11 +465,24 @@ def collect(source, request, text, *, known=None, preview=False, on_item=None):
             )
 
         def flags(row):
-            return {"workplace_type": row.findtext("remoteStatus")}
+            # Temporary remote work is not a permanent fully-remote arrangement.
+            mode = {
+                "fully": "remote",
+                "hybrid": "hybrid",
+                "temporary": "hybrid",
+                "none": "onsite",
+                "onsite": "onsite",
+            }.get(row.findtext("remoteStatus"))
+            return {
+                "remote": True if mode == "remote" else False if mode == "onsite" else None,
+                "workplace_type": mode,
+            }
 
-        for row in select(
-            root.findall("channel/item"), lambda row: row.findtext("title"), place, flags
-        ):
+        rows = root.findall("channel/item")
+        # The public RSS feed defaults to its first 100 jobs, not the whole board.
+        if len(rows) >= 100:
+            source["result_capped"] = True
+        for row in select(rows, lambda row: row.findtext("title"), place, flags):
             add(
                 {child.tag: child.text for child in row},
                 row.findtext("guid") or row.findtext("link"),

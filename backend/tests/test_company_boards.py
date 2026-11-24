@@ -966,3 +966,40 @@ def test_plain_xml_with_character_references_still_parses():
     with pytest.raises(DomainError) as invalid:
         company.xml(b"<rss><title>&undefined;</title></rss>")
     assert invalid.value.code == "source_format"
+
+
+@pytest.mark.parametrize(
+    ("status", "workplace", "remote"),
+    [
+        ("fully", "remote", True),
+        ("hybrid", "hybrid", None),
+        ("none", "onsite", False),
+        ("onsite", "onsite", False),
+        ("temporary", "hybrid", None),
+        ("unexpected", None, None),
+    ],
+)
+def test_teamtailor_normalizes_remote_status(status, workplace, remote):
+    feed = f"""<rss xmlns:tt="https://teamtailor.com/locations"><channel><item>
+    <title>Engineer</title><guid>1</guid><link>https://example.teamtailor.com/jobs/1</link>
+    <description>Build synthetic services.</description><remoteStatus>{status}</remoteStatus>
+    <tt:locations><tt:location><tt:city>Paris</tt:city><tt:country>France</tt:country>
+    </tt:location></tt:locations></item></channel></rss>""".encode()
+    rows, _, _ = collect("teamtailor", [("/jobs.rss", feed)])
+    assert rows[0]["metadata"].get("workplace_type") == workplace
+    assert rows[0]["metadata"]["is_remote"] is remote
+    filtered, _, _ = collect("teamtailor", [("/jobs.rss", feed)], locations=["Remote"])
+    if status == "fully":
+        assert len(filtered) == 1
+        assert filtered[0]["location"] == "Paris, France"
+
+
+@pytest.mark.parametrize("count,capped", [(99, False), (100, True)])
+def test_teamtailor_reports_the_default_feed_cap(count, capped):
+    item = "<item><title>Engineer</title><guid>{}</guid><description>Build services.</description></item>"
+    feed = (
+        "<rss><channel>" + "".join(item.format(i) for i in range(count)) + "</channel></rss>"
+    ).encode()
+    _, source, calls = collect("teamtailor", [("/jobs.rss", feed)], max_results=200)
+    assert source.get("result_capped", False) is capped
+    assert calls == ["https://example.teamtailor.com/jobs.rss"]

@@ -1437,7 +1437,7 @@ export interface paths {
     get?: never;
     put?: never;
     /**
-     * Add or update up to 50 sources (saved searches, company boards, feeds).
+     * Save up to 50 sources (saved searches, company boards, feeds).
      * @description source_id with expected_version updates. A new source is paused unless enabled true. Preview a new source with sources_run first.
      */
     post: operations["sources_save"];
